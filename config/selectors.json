@@ -1,0 +1,11 @@
+{
+  "repo_item": "article.Box-row",
+  "owner_repo": "h2.h3 a",
+  "description": "p.col-9",
+  "language": "span[itemprop=programmingLanguage]",
+  "language_color": ".repo-language-color",
+  "stars_total": "a[href$='/stargazers']",
+  "forks": "a[href$='/forks']",
+  "stars_gained": "span.d-inline-block.float-sm-right",
+  "built_by": "span.d-inline-block.mr-3 a img"
+}

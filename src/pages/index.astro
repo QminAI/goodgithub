@@ -1,0 +1,281 @@
+---
+import Base from '@/layouts/Base.astro';
+import RepoCard from '@/components/RepoCard.astro';
+import type { RepoCard as RepoCardType } from '@/types';
+import { readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
+// ── 找最新 daily 文件 ────────────────────────────────────────────────────────
+const dailyDir = join(process.cwd(), 'data/daily');
+const files = await readdir(dailyDir).catch(() => [] as string[]);
+const jsonFiles = files.filter((f) => f.endsWith('.json')).sort().reverse();
+const latestFile = jsonFiles[0];
+
+let cards: RepoCardType[] = [];
+let date = '';
+let generatedAt = '';
+
+if (latestFile) {
+  const raw = await readFile(join(dailyDir, latestFile), 'utf-8').catch(() => null);
+  if (raw) {
+    const index = JSON.parse(raw) as {
+      date: string;
+      period: string;
+      generated_at: string;
+      count: number;
+      repos: Array<{ owner: string; name: string; rank: number }>;
+    };
+    date = index.date ?? '';
+    generatedAt = index.generated_at ?? '';
+
+    const sorted = [...(index.repos ?? [])].sort((a, b) => a.rank - b.rank);
+    for (const { owner, name } of sorted) {
+      try {
+        const repoPath = join(process.cwd(), `data/repos/${owner}__${name}.json`);
+        const repoRaw = await readFile(repoPath, 'utf-8');
+        cards.push(JSON.parse(repoRaw) as RepoCardType);
+      } catch {
+        // 缺失忽略
+      }
+    }
+  }
+}
+
+// ── SSR 格式化时间（静态文本，不依赖浏览器 JS）───────────────────────────────
+function formatTime(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+const timeStr = formatTime(generatedAt);
+---
+
+<Base title="今日榜 — GoodGithub" activeNav="daily">
+  <main class="wrap">
+
+    <section>
+      <!-- page head -->
+      <div class="pagehead">
+        <h1>
+          今日 GitHub 趋势
+          {date && <span class="en">Today · {date}</span>}
+        </h1>
+        <div class="meta">
+          {cards.length > 0 ? (
+            <>
+              <span><span class="live-dot" aria-hidden="true"></span> <b>{cards.length}</b> 个项目</span>
+              {timeStr && <span>更新于 <b class="mono">{timeStr}</b></span>}
+            </>
+          ) : (
+            <span>暂无数据，等待首次采集</span>
+          )}
+        </div>
+      </div>
+
+      <!-- 卡片列表 -->
+      <div class="cards">
+        {cards.length === 0 ? (
+          <div class="empty">
+            <p>暂无数据。运行 <code>pnpm collect</code> 触发首次采集。</p>
+          </div>
+        ) : (
+          cards.map((card) => <RepoCard card={card} period="daily" />)
+        )}
+      </div>
+    </section>
+
+    <!-- ── 右栏 ── -->
+    <aside class="rail">
+
+      <div class="rail-card">
+        <h3>连续上榜 <span class="count">TOP 5</span><span class="right">≥3 天</span></h3>
+        <p class="placeholder">第 2–3 周实现</p>
+      </div>
+
+      <div class="rail-card">
+        <h3>历史日历热度 <span class="count">30 天</span><span class="right">点击日期回看</span></h3>
+        <p class="placeholder">第 3 周实现</p>
+      </div>
+
+      <div class="rail-card">
+        <h3>收藏 / 已读</h3>
+        <p class="placeholder">第 3 周实现</p>
+      </div>
+
+    </aside>
+
+    <footer class="footer">
+      <span>GoodGithub · 每日 08:30 自动采集 · 数据源 github.com/trending</span>
+      <span>{date || '—'} · v0.1</span>
+    </footer>
+
+  </main>
+</Base>
+
+<style>
+  /* ── layout：主列 + 340px 右栏，对齐 mockup .wrap ── */
+  .wrap {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 28px 28px 80px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 28px;
+  }
+
+  @media (max-width: 1100px) {
+    .wrap {
+      grid-template-columns: 1fr;
+    }
+    .rail {
+      order: 2;
+    }
+  }
+
+  /* ── page head ── */
+  .pagehead {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .pagehead h1 {
+    margin: 0;
+    font-family: var(--font-cn);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .pagehead h1 .en {
+    font-family: var(--font-en);
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 16px;
+  }
+
+  .pagehead .meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .pagehead .meta b {
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--up);
+    display: inline-block;
+    vertical-align: middle;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--up) 25%, transparent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    50% {
+      box-shadow: 0 0 0 6px color-mix(in oklab, var(--up) 10%, transparent);
+    }
+  }
+
+  /* ── cards ── */
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .empty {
+    padding: 48px;
+    text-align: center;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius, 8px);
+    color: var(--muted);
+  }
+
+  .empty code {
+    background: var(--surface);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+
+  /* ── right rail ── */
+  .rail {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .rail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius, 8px);
+    padding: 16px 16px 14px;
+  }
+
+  .rail-card h3 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .rail-card h3 .count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+
+  .rail-card h3 .right {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .placeholder {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  /* ── footer ── */
+  .footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border-2);
+    margin-top: 40px;
+    padding-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted-2);
+    font-size: 12px;
+    font-family: var(--font-en);
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+</style>

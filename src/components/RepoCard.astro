@@ -1,0 +1,497 @@
+---
+import type { RepoCard } from '../types/repo'
+import { formatStars, formatChange, formatGainSuffix } from '../lib/format'
+
+interface Props {
+  card: RepoCard
+  period: 'daily' | 'weekly' | 'monthly'
+}
+
+const { card, period } = Astro.props
+
+const rankInfo = card.ranks[period]
+const rank = rankInfo?.rank ?? null
+const change = rankInfo?.change ?? 0
+const { text: changeText, type: changeType } = formatChange(change)
+const gainSuffix = formatGainSuffix(period)
+
+// topics: 最多 4 个，超出显示 "+N"
+const MAX_TOPICS = 4
+const visibleTopics = card.topics.slice(0, MAX_TOPICS)
+const extraTopics = card.topics.length > MAX_TOPICS ? card.topics.length - MAX_TOPICS : 0
+
+// 中文一句话标题 fallback
+const hasShortSummary = card.ai_summary_short && card.ai_summary_short.trim().length > 0
+---
+
+<article
+  class="card"
+  data-full-name={`${card.owner}/${card.name}`}
+>
+  <!-- 序号 + 排名变化 -->
+  <div class="card-rank">
+    {rank !== null && <div class="rank-num">{rank}</div>}
+    {changeType !== 'same' && (
+      <div class={`rank-change ${changeType}`}>{changeText}</div>
+    )}
+    {changeType === 'same' && rank !== null && (
+      <div class="rank-change same">{changeText}</div>
+    )}
+  </div>
+
+  <!-- 主体内容 -->
+  <div class="card-body">
+    <!-- repo 信息行 -->
+    <div class="repo-row">
+      <a
+        class="repo-name"
+        href={card.github_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${card.owner}/${card.name} on GitHub`}
+      >
+        <span class="owner">{card.owner}</span><span class="slash">/</span><span class="name">{card.name}</span>
+      </a>
+
+      {card.language && (
+        <>
+          <span class="lang">
+            <span
+              class="lang-dot"
+              style={`background:${card.language_color}`}
+              aria-hidden="true"
+            ></span>
+            {card.language}
+          </span>
+          <span class="dot-sep" aria-hidden="true">·</span>
+        </>
+      )}
+
+      <span class="stat">
+        <span aria-hidden="true">⭐</span>
+        <span class="sr-only">Stars:</span>
+        <span class="num">{formatStars(card.stars_total)}</span>
+      </span>
+      <span class="dot-sep" aria-hidden="true">·</span>
+      <span class="stat">
+        <span aria-hidden="true">🍴</span>
+        <span class="sr-only">Forks:</span>
+        <span class="num">{formatStars(card.forks)}</span>
+      </span>
+      {card.license && (
+        <>
+          <span class="dot-sep" aria-hidden="true">·</span>
+          <span class="stat">{card.license}</span>
+        </>
+      )}
+    </div>
+
+    <!-- 中文一句话标题 -->
+    {hasShortSummary ? (
+      <h2 class="card-title">{card.ai_summary_short}</h2>
+    ) : (
+      <h2 class="card-title placeholder">
+        {card.description || `${card.owner}/${card.name}`}
+        <span class="pending-hint">AI 摘要待生成</span>
+      </h2>
+    )}
+
+    <!-- 中文描述 -->
+    {card.ai_summary_card && (
+      <p class="card-desc">{card.ai_summary_card}</p>
+    )}
+
+    <!-- topics -->
+    {visibleTopics.length > 0 && (
+      <div class="topics">
+        {visibleTopics.map((topic) => (
+          <span class="topic">{topic}</span>
+        ))}
+        {extraTopics > 0 && (
+          <span class="topic muted">+{extraTopics}</span>
+        )}
+      </div>
+    )}
+  </div>
+
+  <!-- 右侧操作区 -->
+  <div class="card-actions">
+    <!-- 新增 stars 大字 -->
+    <div class="gain-big" aria-label={`+${formatStars(card.stars_gained)} ${gainSuffix}`}>
+      <span class="num">+{formatStars(card.stars_gained)}</span>
+      <span class="lbl">{gainSuffix}</span>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="act-row">
+      <!-- 跳 GitHub -->
+      <a
+        class="act"
+        href={card.github_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="打开 GitHub"
+        aria-label={`在 GitHub 上打开 ${card.owner}/${card.name}`}
+      >
+        <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 .5C5.6.5.5 5.6.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.5-.3-5.2-1.3-5.2-5.7 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.2 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.6 18.4.5 12 .5z"/>
+        </svg>
+      </a>
+
+      <!-- 收藏 (UI 占位, D2 实现) -->
+      <button
+        class="act"
+        title="收藏"
+        aria-label={`收藏 ${card.owner}/${card.name}`}
+        data-action="favorite"
+        data-repo={`${card.owner}/${card.name}`}
+      >
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      </button>
+
+      <!-- 已读 (UI 占位, D2 实现) -->
+      <button
+        class="act"
+        title="标记已读"
+        aria-label={`将 ${card.owner}/${card.name} 标记为已读`}
+        data-action="read"
+        data-repo={`${card.owner}/${card.name}`}
+      >
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M20 6 9 17l-5-5"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</article>
+
+<style>
+  .card {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 18px;
+    padding: 20px 4px;
+    border-top: 1px solid var(--border-2);
+    position: relative;
+    transition: background 120ms ease;
+  }
+
+  .card:first-child {
+    border-top: 0;
+    padding-top: 4px;
+  }
+
+  .card:hover {
+    background: color-mix(in oklab, var(--surface) 30%, transparent);
+  }
+
+  .card.read {
+    opacity: var(--read-dim);
+  }
+
+  .card.read .card-title {
+    color: var(--muted);
+  }
+
+  /* ── 序号 + 排名变化 ── */
+  .card-rank {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding-top: 2px;
+  }
+
+  .rank-num {
+    font-family: var(--font-en);
+    font-weight: 600;
+    font-size: 20px;
+    color: var(--fg);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rank-change {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .rank-change.up {
+    color: var(--up);
+    background: color-mix(in oklab, var(--up) 12%, transparent);
+  }
+
+  .rank-change.down {
+    color: var(--down);
+    background: color-mix(in oklab, var(--down) 12%, transparent);
+  }
+
+  .rank-change.new {
+    color: var(--new);
+    background: color-mix(in oklab, var(--new) 14%, transparent);
+  }
+
+  .rank-change.same {
+    color: var(--muted);
+  }
+
+  /* ── 卡片主体 ── */
+  .card-body {
+    min-width: 0;
+  }
+
+  .repo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .repo-name {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--fg-2);
+    text-decoration: none;
+  }
+
+  .repo-name .owner {
+    color: var(--muted);
+  }
+
+  .repo-name .slash {
+    color: var(--muted-2);
+    margin: 0 1px;
+  }
+
+  .repo-name .name {
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .repo-name:hover {
+    text-decoration: none;
+  }
+
+  .repo-name:hover .name {
+    color: var(--accent);
+  }
+
+  .lang-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .stat .num {
+    color: var(--fg-2);
+  }
+
+  .dot-sep {
+    color: var(--border);
+  }
+
+  /* ── 标题 ── */
+  .card-title {
+    font-family: var(--font-cn);
+    font-weight: 600;
+    font-size: 19px;
+    line-height: 1.35;
+    color: var(--fg);
+    margin: 4px 0 6px;
+    letter-spacing: -0.005em;
+    text-wrap: pretty;
+  }
+
+  .card-title:hover {
+    color: var(--accent);
+    cursor: pointer;
+  }
+
+  .card-title.placeholder {
+    color: var(--fg-2);
+    font-size: 16px;
+  }
+
+  .pending-hint {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+    font-family: var(--font-cn);
+    vertical-align: middle;
+  }
+
+  /* ── 描述 ── */
+  .card-desc {
+    color: var(--fg-2);
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin: 0 0 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── topics ── */
+  .topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .topic {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+    padding: 2px 7px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in oklab, var(--accent) 18%, transparent);
+  }
+
+  .topic.muted {
+    color: var(--muted);
+    background: transparent;
+    border-color: var(--border);
+  }
+
+  /* ── 右侧操作区 ── */
+  .card-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+  }
+
+  .gain-big {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    color: var(--up);
+    font-weight: 600;
+  }
+
+  .gain-big .num {
+    font-family: var(--font-en);
+    font-size: 16px;
+  }
+
+  .gain-big .lbl {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .act-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .act {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 80ms ease, border-color 80ms ease, background 80ms ease;
+  }
+
+  .act:hover {
+    color: var(--fg);
+    border-color: var(--muted-2);
+    background: var(--elev);
+  }
+
+  .act.on {
+    color: var(--new);
+    border-color: color-mix(in oklab, var(--new) 40%, transparent);
+    background: color-mix(in oklab, var(--new) 10%, transparent);
+  }
+
+  .act.read-on {
+    color: var(--up);
+    border-color: color-mix(in oklab, var(--up) 40%, transparent);
+    background: color-mix(in oklab, var(--up) 10%, transparent);
+  }
+
+  /* ── 图标尺寸 ── */
+  .i {
+    width: 14px;
+    height: 14px;
+    stroke-width: 1.7;
+  }
+
+  /* ── 无障碍隐藏 ── */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* ── 响应式 ── */
+  @media (max-width: 640px) {
+    .card {
+      grid-template-columns: 40px 1fr;
+      grid-template-rows: auto auto;
+    }
+
+    .card-actions {
+      grid-column: 1 / -1;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 0;
+      border-top: 1px solid var(--border-2);
+      padding-top: 10px;
+      margin-top: 4px;
+    }
+
+    .rank-num {
+      font-size: 16px;
+    }
+  }
+</style>

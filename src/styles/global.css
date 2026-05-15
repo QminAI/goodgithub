@@ -1,0 +1,30 @@
+@import "./tokens.css";
+
+/* ─────────── reset ─────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+/* ─────────── base ─────────── */
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-cn);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+button { font-family: inherit; cursor: pointer; }
+
+code, .mono, .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
